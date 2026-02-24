@@ -101,7 +101,11 @@ function renderSoloButtons(container) {
             <div class="reset-icon">↺</div>
         `;
 
-        btn.onclick = async () => {
+        btn.onclick = async (e) => {
+            // 1. Prevent the click from "leaking" to parent elements
+            e.preventDefault();
+            e.stopPropagation();
+
             await Tone.start();
 
             // 1. Handle Pause
@@ -118,27 +122,34 @@ function renderSoloButtons(container) {
             soloPlayer.stop();
             const statusText = btn.querySelector('.solo-status');
 
-            if (!bufferCache.has(url)) {
-                statusText.innerHTML = `LOADING<span class="dot-loader"><span>.</span><span>.</span><span>.</span></span>`;
-                btn.classList.add('loading-pulse');
+            try {
+                if (!bufferCache.has(url)) {
+                    statusText.innerHTML = `LOADING<span class="dot-loader"><span>.</span><span>.</span><span>.</span></span>`;
+                    btn.classList.add('loading-pulse');
+                    
+                    const buffer = await new Tone.ToneAudioBuffer().load(url);
+                    bufferCache.set(url, buffer);
+                    
+                    btn.classList.remove('loading-pulse');
+                }
                 
-                const buffer = await new Tone.ToneAudioBuffer().load(url);
-                bufferCache.set(url, buffer);
+                // 3. Trigger Playback
+                const targetBuffer = bufferCache.get(url);
+                if (soloPlayer.buffer !== targetBuffer) pauseOffset = 0;
                 
+                soloPlayer.buffer = targetBuffer;
+                if (pauseOffset >= targetBuffer.duration) pauseOffset = 0;
+
+                soloPlayer.start(Tone.now(), pauseOffset);
+                lastStartTime = Tone.now();
+                currentlyPlayingIndex = i;
+                updateSoloUI(i, pauseOffset > 0);
+
+            } catch (error) {
+                console.error("Audio Load Error:", error);
+                statusText.innerText = "TAP TO RETRY"; // Give feedback instead of crashing
                 btn.classList.remove('loading-pulse');
             }
-            
-            // 3. Trigger Playback
-            const targetBuffer = bufferCache.get(url);
-            if (soloPlayer.buffer !== targetBuffer) pauseOffset = 0;
-            
-            soloPlayer.buffer = targetBuffer;
-            if (pauseOffset >= targetBuffer.duration) pauseOffset = 0;
-
-            soloPlayer.start(Tone.now(), pauseOffset);
-            lastStartTime = Tone.now();
-            currentlyPlayingIndex = i;
-            updateSoloUI(i, pauseOffset > 0);
         };
 
         container.appendChild(btn);
