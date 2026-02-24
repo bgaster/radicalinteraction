@@ -56,89 +56,91 @@ async function startPath(path) {
 }
 
 // Add this to your top-level state variables
+
 let soloPlayer = null;
-let sampleBuffers = null;
+const bufferCache = new Map(); // Stores loaded buffers so we don't download twice
 let currentlyPlayingIndex = -1;
-let pauseOffset = 0; // The actual time (in seconds) we paused at
-let lastStartTime = 0; // When we last hit play
+let pauseOffset = 0;
+let lastStartTime = 0;
 
 async function setupSolo() {
     const container = document.getElementById('solo-list');
     if (!container) return;
-    container.innerHTML = "LOADING..."; 
-
-    // We use GrainPlayer because it handles offsets more reliably
+    
+    // 1. Clear container and setup the player
+    container.innerHTML = ""; 
     if (!soloPlayer) {
         soloPlayer = new Tone.GrainPlayer().toDestination();
     }
 
-    sampleBuffers = new Tone.Buffers(SAMPLES, () => renderSoloButtons(container));
+    // 2. Draw the buttons immediately (UI is now interactive)
+    renderSoloButtons(container);
+
+    // 3. BACKGROUND PRE-FETCH
+    // This starts downloading the files without making the user wait.
+    // They can still click a button to "jump the queue" and load one specifically.
+    SAMPLES.forEach(url => {
+        if (!bufferCache.has(url)) {
+            new Tone.ToneAudioBuffer().load(url)
+                .then(buffer => {
+                    bufferCache.set(url, buffer);
+                    console.log(`Background loaded: ${url}`);
+                })
+                .catch(err => console.error("Prefetch failed", err));
+        }
+    });
 }
 
 function renderSoloButtons(container) {
-    container.innerHTML = ""; 
-
     SAMPLES.forEach((url, i) => {
         const btn = document.createElement('div');
         btn.className = 'choice-card solo-item';
-        // Add the reset icon (Unicode ↺)
         btn.innerHTML = `
-            <div class="solo-label"> ${NAMES[i]}</div>
+            <div class="solo-label">SAMPLE ${i + 1}</div>
             <div class="solo-status">PLAY</div>
-            <div class="reset-icon" title="Reset to start">↺</div>
+            <div class="reset-icon">↺</div>
         `;
-
-        // THE RESET LOGIC
-        const resetBtn = btn.querySelector('.reset-icon');
-        resetBtn.onclick = (e) => {
-            e.stopPropagation(); // Stop the box from toggling play/pause
-            
-            // If THIS sample is currently playing, stop it first
-            if (currentlyPlayingIndex === i) {
-                soloPlayer.stop();
-                currentlyPlayingIndex = -1;
-            }
-            
-            // Wipe the memory for this specific sample
-            pauseOffset = 0;
-            updateSoloUI();
-        };
 
         btn.onclick = async () => {
             await Tone.start();
 
+            // 1. Handle Pause
             if (currentlyPlayingIndex === i) {
-                // --- PAUSE LOGIC ---
-                // Calculate how much was played since we started
                 const elapsed = Tone.now() - lastStartTime;
-                pauseOffset += elapsed; 
-                
+                pauseOffset += elapsed;
                 soloPlayer.stop();
                 currentlyPlayingIndex = -1;
-            } else {
-                // --- PLAY/RESUME LOGIC ---
-                // If it's a new sample, reset everything
-                if (soloPlayer.buffer !== sampleBuffers.get(i)) {
-                    pauseOffset = 0;
-                }
-                
-                soloPlayer.buffer = sampleBuffers.get(i);
-                
-                // Keep pauseOffset within the length of the sound
-                if (pauseOffset >= soloPlayer.buffer.duration) pauseOffset = 0;
-
-                // GrainPlayer allows us to set the playhead directly
-                soloPlayer.playbackRate = 1;
-                soloPlayer.detune = 0;
-                
-                // Start at the specific offset
-                soloPlayer.start(Tone.now(), pauseOffset);
-                
-                lastStartTime = Tone.now();
-                currentlyPlayingIndex = i;
+                updateSoloUI();
+                return;
             }
-            updateSoloUI(currentlyPlayingIndex, pauseOffset > 0);
+
+            // 2. Handle Play/Load
+            soloPlayer.stop();
+            const statusText = btn.querySelector('.solo-status');
+
+            if (!bufferCache.has(url)) {
+                statusText.innerHTML = `LOADING<span class="dot-loader"><span>.</span><span>.</span><span>.</span></span>`;
+                btn.classList.add('loading-pulse');
+                
+                const buffer = await new Tone.ToneAudioBuffer().load(url);
+                bufferCache.set(url, buffer);
+                
+                btn.classList.remove('loading-pulse');
+            }
+            
+            // 3. Trigger Playback
+            const targetBuffer = bufferCache.get(url);
+            if (soloPlayer.buffer !== targetBuffer) pauseOffset = 0;
+            
+            soloPlayer.buffer = targetBuffer;
+            if (pauseOffset >= targetBuffer.duration) pauseOffset = 0;
+
+            soloPlayer.start(Tone.now(), pauseOffset);
+            lastStartTime = Tone.now();
+            currentlyPlayingIndex = i;
+            updateSoloUI(i, pauseOffset > 0);
         };
+
         container.appendChild(btn);
     });
 }
