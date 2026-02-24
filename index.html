@@ -2,22 +2,47 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Radical Interaction | Home</title>
-    <link rel="canonical" href="https://radicalinteraction.org/">
-    <style>
-        body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
-        .podcast-link { color: #d9534f; font-weight: bold; font-size: 1.2rem; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>S-FET Spatial Mixer</title>
+    <link rel="stylesheet" href="./css/style.css">
+    <link rel="icon" href="data:,">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 </head>
 <body>
 
-    <h1>Radical Interaction</h1>
-    <p>Welcome to the project. Everything here is hosted on radicalinteraction.org.</p>
-    
-    <hr>
+    <div id="landing" class="view">
+      <div class="landing-content">
+      <img src="./assets/radical_interaction.png" alt="S-FET LABS" class="main-logo">
 
-    <p>Check out our latest audio: <a class="podcast-link" href="podcast.html">Go to Podcast Page</a></p>
+      <div class="choice-container">
+        <div class="choice-card" onclick="startPath(1)">
+            <img src="./assets/community.png" alt="Pathway 1" class="full-img">
+        </div>
 
+        <div class="choice-card" onclick="startPath(2)">
+            <img src="./assets/single.png" alt="Pathway 2" class="full-img">
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <div id="mixer-page" class="view" style="display:none;">
+        <div id="status">INITIALIZING...</div>
+        <h2 id="page-title">THE HUB</h2>
+        <p id="page-desc">Full spectrum audio active.</p>
+        
+        <button class="nav-btn left" onclick="movePage(-1)">‹</button>
+        <button class="nav-btn right" onclick="movePage(1)">›</button>
+        
+        <div id="user-info"></div>
+    </div>
+
+    <div id="solo-page" class="view" style="display:none;">
+        <button class="nav-btn left" onclick="location.reload()">BACK</button>
+        <h2>SOLO EXPLORER</h2>
+        <div id="solo-list" class="choice-container"></div>
+    </div>
+
+    <script src="./js/script.js"></script>
 </body>
 </html>
