@@ -179,6 +179,33 @@ body, html {
     pointer-events: auto;
 }
 
+.solo-item {
+    position: relative; /* Necessary for absolute positioning of the icon */
+}
+
+.reset-icon {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-size: 1.4rem;
+    color: rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 10; /* Ensure it stays above other elements */
+}
+
+.reset-icon:hover {
+    color: var(--accent);
+    transform: rotate(-45deg); /* Subtle visual feedback */
+}
+
+/* We can trigger this from JS by adding a class or just using the inline styles above */
+.playing-now {
+    border-color: var(--accent) !important;
+    background: rgba(3, 218, 198, 0.2) !important;
+    box-shadow: 0 0 20px rgba(3, 218, 198, 0.4);
+}
+
 /* JAMMING PULSE */
 @keyframes pulse {
     0% { box-shadow: 0 0 0px var(--accent); }
@@ -224,4 +251,38 @@ body, html {
         transform: none;
     }
     #user-info { bottom: 120px; }
+}
+
+.footer-logos {
+    display: flex;
+    justify-content: center; /* Centers the group */
+    align-items: center;
+    gap: 40px;               /* Space between the two logos */
+    width: 100%;
+    margin-top: 50px;        /* Pushes them down away from the cards */
+    padding-bottom: 30px;    /* Extra breathing room at the bottom */
+}
+
+.partner-logo {
+    height: 80px;            /* Keeps them a uniform, subtle size */
+    width: auto;
+    opacity: 0.6;            /* Makes them look elegant/professional */
+    transition: opacity 0.3s;
+    filter: grayscale(100%); /* Optional: makes logos blend with your dark theme */
+}
+
+.partner-logo:hover {
+    opacity: 1;
+    filter: grayscale(0%);   /* Brings color back on hover */
+}
+
+/* On very small screens, stack them or reduce gap */
+@media (max-width: 480px) {
+    .footer-logos {
+        gap: 20px;
+        margin-top: 30px;
+    }
+    .partner-logo {
+        height: 30px;
+    }
 }

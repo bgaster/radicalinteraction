@@ -1,13 +1,24 @@
 // CONFIGURATION
 const SAMPLES = [
-    "./assets/404day_2025.mp3",
-    "./assets/cold3_2025.mp3",
-    "./assets/darktone1_2025.mp3",
-    "./assets/funonsun_2025.mp3",
-    "./assets/glitch1_2025.mp3",
-    "./assets/leaf13_2025.mp3",
-    "./assets/leaf5_2025.mp3",
-    "./assets/op-1_2_2025.mp3"
+    "./assets/ri_intro.mp3",
+    "./assets/radical-interaction-rodrigo.mp3",
+    "./assets/radical-interaction-courtney.mp3",
+    "./assets/radical-interaction-sarah.mp3",
+    "./assets/radical-interaction-JPM.mp3",
+    "./assets/radical-interaction-kathy.mp3",
+    "./assets/ri_atau.mp3",
+    "./assets/ri_epilog.mp3"
+];
+
+const NAMES = [
+    "prolog",
+    "rodrigo",
+    "courtney",
+    "sarah",
+    "jas, maisie, partrica",
+    "kathy",
+    "arau",
+    "epilog"
 ];
 
 // STATE
@@ -46,52 +57,103 @@ async function startPath(path) {
 
 // Add this to your top-level state variables
 let soloPlayer = null;
+let sampleBuffers = null;
+let currentlyPlayingIndex = -1;
+let pauseOffset = 0; // The actual time (in seconds) we paused at
+let lastStartTime = 0; // When we last hit play
 
-function setupSolo() {
+async function setupSolo() {
     const container = document.getElementById('solo-list');
     if (!container) return;
-    
-    container.innerHTML = ""; 
+    container.innerHTML = "LOADING..."; 
 
-    // Initialize the solo player if it doesn't exist
+    // We use GrainPlayer because it handles offsets more reliably
     if (!soloPlayer) {
-        soloPlayer = new Tone.Player().toDestination();
+        soloPlayer = new Tone.GrainPlayer().toDestination();
     }
+
+    sampleBuffers = new Tone.Buffers(SAMPLES, () => renderSoloButtons(container));
+}
+
+function renderSoloButtons(container) {
+    container.innerHTML = ""; 
 
     SAMPLES.forEach((url, i) => {
         const btn = document.createElement('div');
         btn.className = 'choice-card solo-item';
+        // Add the reset icon (Unicode ↺)
         btn.innerHTML = `
-            <div class="solo-label">SAMPLE ${i + 1}</div>
-            <div class="solo-status">IDLE</div>
+            <div class="solo-label"> ${NAMES[i]}</div>
+            <div class="solo-status">PLAY</div>
+            <div class="reset-icon" title="Reset to start">↺</div>
         `;
+
+        // THE RESET LOGIC
+        const resetBtn = btn.querySelector('.reset-icon');
+        resetBtn.onclick = (e) => {
+            e.stopPropagation(); // Stop the box from toggling play/pause
+            
+            // If THIS sample is currently playing, stop it first
+            if (currentlyPlayingIndex === i) {
+                soloPlayer.stop();
+                currentlyPlayingIndex = -1;
+            }
+            
+            // Wipe the memory for this specific sample
+            pauseOffset = 0;
+            updateSoloUI();
+        };
 
         btn.onclick = async () => {
             await Tone.start();
 
-            // 1. Stop whatever is currently playing
-            soloPlayer.stop();
-
-            // 2. Clear visual 'active' states from all buttons
-            document.querySelectorAll('.solo-item').forEach(item => {
-                item.style.borderColor = "#333";
-                item.querySelector('.solo-status').innerText = "IDLE";
-            });
-
-            // 3. Load and play the new sample
-            try {
-                await soloPlayer.load(url);
-                soloPlayer.start();
+            if (currentlyPlayingIndex === i) {
+                // --- PAUSE LOGIC ---
+                // Calculate how much was played since we started
+                const elapsed = Tone.now() - lastStartTime;
+                pauseOffset += elapsed; 
                 
-                // 4. Update UI for the active button
-                btn.style.borderColor = "var(--accent)";
-                btn.querySelector('.solo-status').innerText = "PLAYING";
-            } catch (e) {
-                console.error("Solo load failed", e);
-            }
-        };
+                soloPlayer.stop();
+                currentlyPlayingIndex = -1;
+            } else {
+                // --- PLAY/RESUME LOGIC ---
+                // If it's a new sample, reset everything
+                if (soloPlayer.buffer !== sampleBuffers.get(i)) {
+                    pauseOffset = 0;
+                }
+                
+                soloPlayer.buffer = sampleBuffers.get(i);
+                
+                // Keep pauseOffset within the length of the sound
+                if (pauseOffset >= soloPlayer.buffer.duration) pauseOffset = 0;
 
+                // GrainPlayer allows us to set the playhead directly
+                soloPlayer.playbackRate = 1;
+                soloPlayer.detune = 0;
+                
+                // Start at the specific offset
+                soloPlayer.start(Tone.now(), pauseOffset);
+                
+                lastStartTime = Tone.now();
+                currentlyPlayingIndex = i;
+            }
+            updateSoloUI(currentlyPlayingIndex, pauseOffset > 0);
+        };
         container.appendChild(btn);
+    });
+}
+
+function updateSoloUI(activeIndex = -1, isPaused = false) {
+    document.querySelectorAll('.solo-item').forEach((btn, index) => {
+        const status = btn.querySelector('.solo-status');
+        if (index === activeIndex) {
+            status.innerText = "PAUSE";
+            btn.style.borderColor = "var(--accent)";
+        } else {
+            btn.style.borderColor = "#333";
+            // Show RESUME if this specific button has a stored pause time
+            status.innerText = (index === currentlyPlayingIndex && isPaused) ? "RESUME" : "PLAY";
+        }
     });
 }
 
