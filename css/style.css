@@ -224,6 +224,32 @@ body, html {
     100% { box-shadow: 0 0 0px var(--accent); }
 }
 
+/* The track the bar moves along */
+.progress-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 6px; /* Give it enough height to be seen */
+    background: rgba(255, 255, 255, 0.15); /* Light grey track */
+    z-index: 5;
+}
+
+/* The actual moving part */
+.progress-bar {
+    width: 0%; /* Starts at zero */
+    height: 100%;
+    background: #00ffcc; /* Or your specific accent color */
+    transition: width 0.2s linear;
+}
+
+/* Ensure the card doesn't hide the bar */
+.solo-item {
+    position: relative; /* Required for absolute positioning of the bar */
+    overflow: hidden;   /* Keeps the bar inside the rounded corners */
+    padding-bottom: 10px; /* Space so text doesn't overlap bar */
+}
+
 /* Subtle feedback while the browser buffers the stream */
 .solo-item:active {
     background: rgba(var(--accent-rgb), 0.1);

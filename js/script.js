@@ -94,6 +94,9 @@ async function setupSolo() {
     renderSoloButtons(document.getElementById('solo-list'));
 }
 
+// We will store native audio elements here to keep track of streams
+const streamCache = new Map(); 
+
 function renderSoloButtons(container) {
     container.innerHTML = ""; 
 
@@ -104,76 +107,80 @@ function renderSoloButtons(container) {
             <div class="solo-label">${NAMES[i]}</div>
             <div class="solo-status">PLAY</div>
             <div class="reset-icon" title="Reset to start">↺</div>
+            <div class="progress-container">
+                <div class="progress-bar"></div>
+            </div>
         `;
+
+        // 1. Create or retrieve the native audio element
+        if (!streamCache.has(url)) {
+            const audio = new Audio(url);
+            audio.preload = "none"; 
+            audio.crossOrigin = "anonymous";
+            streamCache.set(url, audio);
+        }
+
+        const audio = streamCache.get(url);
+        const progressBar = btn.querySelector('.progress-bar');
+
+        // 2. The Progress Bar Logic
+        // This updates the bar width as the file streams/plays
+        audio.ontimeupdate = () => {
+            if (audio.duration) {
+                const percentage = (audio.currentTime / audio.duration) * 100;
+                progressBar.style.width = `${percentage}%`;
+            }
+        };
+
+        // 3. The "Natural End" Logic
+        // When the sample finishes, reset the UI so it doesn't look "stuck"
+        audio.onended = () => {
+            progressBar.style.width = '0%';
+            currentlyPlayingIndex = -1;
+            updateSoloUI(); 
+        };
 
         btn.onclick = async (e) => {
             e.preventDefault();
             e.stopPropagation();
-            
-            // Critical: Try to unlock Tone here, but the 
-            // "Master Unlock" on the landing page is the real fix!
-            await Tone.start();
+            await Tone.start(); // Always first!
 
+            const audio = streamCache.get(url);
             const statusText = btn.querySelector('.solo-status');
 
             if (currentlyPlayingIndex === i) {
-                // --- THIS PART RUNS IF YOU TAP A PLAYING SAMPLE (PAUSE) ---
-                const elapsed = Tone.now() - startTime;
-                pauseTime += elapsed;
-                player.stop();
+                // --- PAUSE ---
+                audio.pause();
                 currentlyPlayingIndex = -1;
                 updateSoloUI();
-            } 
-            else {
-                // --- THIS IS THE "ELSE" BLOCK FOR PLAYING/BUFFERING ---
-                
-                // 1. Stop any other audio
-                player.stop();
+            } else {
+                // --- PLAY ---
+                // Stop any other audio elements currently playing
+                streamCache.forEach(a => a.pause());
 
-                // 2. Clear old data if it's a new sample
-                if (player.buffer.url !== url) {
-                    pauseTime = 0;
-                }
+                // Important: Update UI to show it's starting
+                statusText.innerHTML = `STREAMING...`;
 
-                // 3. Update UI to show we are working
-                statusText.innerHTML = `BUFFERING<span class="dot-loader"><span>.</span><span>.</span><span>.</span></span>`;
-                btn.classList.add('loading-pulse');
-
-                try {
-                    // 4. The "Stream" load
-                    await player.load(url);
-                    
-                    // 5. Trigger the sound
-                    player.start(Tone.now(), pauseTime);
-                    
-                    startTime = Tone.now();
+                // Connect to Tone.js ONLY if you need effects. 
+                // For simple playback, native audio.play() is safest on mobile.
+                audio.play().then(() => {
                     currentlyPlayingIndex = i;
-                    
-                    btn.classList.remove('loading-pulse');
-                    updateSoloUI(currentlyPlayingIndex, pauseTime > 0);
-
-                } catch (err) {
-                    console.error("Mobile load error:", err);
-                    statusText.innerText = "TAP TO RETRY";
-                    btn.classList.remove('loading-pulse');
-                }
-            } // <--- End of Else
-        }; // <--- End of onclick
-
-        // 2. RESET ICON HANDLER
-        const resetBtn = btn.querySelector('.reset-icon');
-        resetBtn.onclick = (e) => {
-            e.preventDefault();
-            e.stopPropagation(); // Prevents the main button's "Play" logic from firing
-            
-            if (currentlyPlayingIndex === i) {
-                player.stop();
-                currentlyPlayingIndex = -1;
+                    updateSoloUI(i, audio.currentTime > 0);
+                }).catch(err => {
+                    console.error("Stream blocked:", err);
+                    statusText.innerText = "TAP TO PLAY";
+                });
             }
-            
-            pauseTime = 0;
+        };
+
+        // 2. RESET ICON
+        btn.querySelector('.reset-icon').onclick = (e) => {
+            e.stopPropagation();
+            const audio = streamCache.get(url);
+            audio.pause();
+            audio.currentTime = 0;
+            currentlyPlayingIndex = -1;
             updateSoloUI();
-            console.log(`Sample ${i + 1} reset to start.`);
         };
 
         container.appendChild(btn);
