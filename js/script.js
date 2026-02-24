@@ -17,7 +17,7 @@ const NAMES = [
     "sarah",
     "jas, maisie, partrica",
     "kathy",
-    "arau",
+    "atau",
     "epilog"
 ];
 
@@ -56,100 +56,110 @@ async function startPath(path) {
 }
 
 // Add this to your top-level state variables
-
-let soloPlayer = null;
-const bufferCache = new Map(); // Stores loaded buffers so we don't download twice
+let player = null;
 let currentlyPlayingIndex = -1;
-let pauseOffset = 0;
-let lastStartTime = 0;
+let pauseTime = 0;
+let startTime = 0;
 
 async function setupSolo() {
     const container = document.getElementById('solo-list');
     if (!container) return;
     
-    // 1. Clear container and setup the player
-    container.innerHTML = ""; 
-    if (!soloPlayer) {
-        soloPlayer = new Tone.GrainPlayer().toDestination();
+    container.innerHTML = ""; // Clear any "Loading" text
+    
+    // Create one global player instance
+    if (!player) {
+        player = new Tone.Player().toDestination();
     }
 
-    // 2. Draw the buttons immediately (UI is now interactive)
     renderSoloButtons(container);
-
-    // 3. BACKGROUND PRE-FETCH
-    // This starts downloading the files without making the user wait.
-    // They can still click a button to "jump the queue" and load one specifically.
-    SAMPLES.forEach(url => {
-        if (!bufferCache.has(url)) {
-            new Tone.ToneAudioBuffer().load(url)
-                .then(buffer => {
-                    bufferCache.set(url, buffer);
-                    console.log(`Background loaded: ${url}`);
-                })
-                .catch(err => console.error("Prefetch failed", err));
-        }
-    });
 }
 
 function renderSoloButtons(container) {
+    container.innerHTML = ""; 
+
     SAMPLES.forEach((url, i) => {
         const btn = document.createElement('div');
         btn.className = 'choice-card solo-item';
         btn.innerHTML = `
-            <div class="solo-label">SAMPLE ${i + 1}</div>
+            <div class="solo-label">${NAMES[i]}</div>
             <div class="solo-status">PLAY</div>
-            <div class="reset-icon">↺</div>
+            <div class="reset-icon" title="Reset to start">↺</div>
         `;
 
+        // 1. MAIN CLICK HANDLER (Play/Pause/Buffer)
         btn.onclick = async (e) => {
-            // 1. Prevent the click from "leaking" to parent elements
+            // Prevent mobile "ghost clicks" or page redirects
             e.preventDefault();
             e.stopPropagation();
-
+            
+            // Essential for mobile audio unlocking
             await Tone.start();
 
-            // 1. Handle Pause
-            if (currentlyPlayingIndex === i) {
-                const elapsed = Tone.now() - lastStartTime;
-                pauseOffset += elapsed;
-                soloPlayer.stop();
-                currentlyPlayingIndex = -1;
-                updateSoloUI();
-                return;
-            }
-
-            // 2. Handle Play/Load
-            soloPlayer.stop();
             const statusText = btn.querySelector('.solo-status');
 
-            try {
-                if (!bufferCache.has(url)) {
-                    statusText.innerHTML = `LOADING<span class="dot-loader"><span>.</span><span>.</span><span>.</span></span>`;
-                    btn.classList.add('loading-pulse');
+            if (currentlyPlayingIndex === i) {
+                // --- ACTION: PAUSE ---
+                const elapsed = Tone.now() - startTime;
+                pauseTime += elapsed;
+                player.stop();
+                currentlyPlayingIndex = -1;
+                updateSoloUI(); // Resets UI to show "RESUME"
+            } else {
+                // --- ACTION: PLAY / RESUME ---
+                
+                // Stop any other sample currently playing
+                player.stop();
+
+                // If switching to a brand new sample, wipe the playhead memory
+                // Note: We check against player.buffer.url if it exists
+                if (currentlyPlayingIndex !== i && currentlyPlayingIndex !== -1) {
+                    pauseTime = 0;
+                }
+
+                // Visual Feedback: Show the animated dots while the phone buffers
+                statusText.innerHTML = `BUFFERING<span class="dot-loader"><span>.</span><span>.</span><span>.</span></span>`;
+                btn.classList.add('loading-pulse');
+
+                try {
+                    // Stream/Load: Fetch only what's needed to start
+                    await player.load(url);
                     
-                    const buffer = await new Tone.ToneAudioBuffer().load(url);
-                    bufferCache.set(url, buffer);
+                    // Safety check: ensure offset isn't longer than the file
+                    if (pauseTime >= player.buffer.duration) pauseTime = 0;
+
+                    // Start playback from the stored offset
+                    player.start(Tone.now(), pauseTime);
+                    
+                    startTime = Tone.now();
+                    currentlyPlayingIndex = i;
                     
                     btn.classList.remove('loading-pulse');
+                    updateSoloUI(currentlyPlayingIndex, pauseTime > 0);
+
+                } catch (err) {
+                    console.error("Playback failed:", err);
+                    statusText.innerText = "RETRY";
+                    btn.classList.remove('loading-pulse');
+                    currentlyPlayingIndex = -1;
                 }
-                
-                // 3. Trigger Playback
-                const targetBuffer = bufferCache.get(url);
-                if (soloPlayer.buffer !== targetBuffer) pauseOffset = 0;
-                
-                soloPlayer.buffer = targetBuffer;
-                if (pauseOffset >= targetBuffer.duration) pauseOffset = 0;
-
-                soloPlayer.start(Tone.now(), pauseOffset);
-                lastStartTime = Tone.now();
-                currentlyPlayingIndex = i;
-                updateSoloUI(i, pauseOffset > 0);
-
-            } catch (error) {
-                console.error("Audio Load Error:", error);
-                statusText.innerText = "TAP TO RETRY"; // Give feedback instead of crashing
-                btn.classList.remove('loading-pulse');
             }
+        };
+
+        // 2. RESET ICON HANDLER
+        const resetBtn = btn.querySelector('.reset-icon');
+        resetBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation(); // Prevents the main button's "Play" logic from firing
+            
+            if (currentlyPlayingIndex === i) {
+                player.stop();
+                currentlyPlayingIndex = -1;
+            }
+            
+            pauseTime = 0;
+            updateSoloUI();
+            console.log(`Sample ${i + 1} reset to start.`);
         };
 
         container.appendChild(btn);

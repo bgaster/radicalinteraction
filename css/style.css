@@ -224,6 +224,11 @@ body, html {
     100% { box-shadow: 0 0 0px var(--accent); }
 }
 
+/* Subtle feedback while the browser buffers the stream */
+.solo-item:active {
+    background: rgba(var(--accent-rgb), 0.1);
+}
+
 .dot-loader span {
     display: inline-block;
     animation: dot-blink 1.4s infinite both;
