@@ -50,6 +50,17 @@ async function startPath(path) {
         await setupMixer();
         connectWS();
     } else {
+        document.querySelectorAll('.choice-card').forEach(card => {
+            card.addEventListener('click', async () => {
+                // This is the crucial moment. The user just tapped. 
+                // We unlock the audio engine right here.
+                await Tone.start();
+                console.log("Audio context unlocked early!");
+                
+                // Then proceed with your existing page navigation
+                // movePage(1); 
+            });
+        });
         document.getElementById('solo-page').style.display = 'flex';
         setupSolo();
     }
@@ -66,13 +77,21 @@ async function setupSolo() {
     if (!container) return;
     
     container.innerHTML = ""; // Clear any "Loading" text
+
+    await Tone.start(); // Try to unlock again
+    
+    // Create a tiny "buffer" of silence and play it.
+    // This tells the phone: "We are definitely an audio app, don't sleep!"
+    const osc = new Tone.Oscillator().toDestination();
+    osc.start().stop("+0.1"); 
     
     // Create one global player instance
     if (!player) {
         player = new Tone.Player().toDestination();
     }
 
-    renderSoloButtons(container);
+    // renderSoloButtons(container);
+    renderSoloButtons(document.getElementById('solo-list'));
 }
 
 function renderSoloButtons(container) {
@@ -87,48 +106,44 @@ function renderSoloButtons(container) {
             <div class="reset-icon" title="Reset to start">↺</div>
         `;
 
-        // 1. MAIN CLICK HANDLER (Play/Pause/Buffer)
         btn.onclick = async (e) => {
-            // Prevent mobile "ghost clicks" or page redirects
             e.preventDefault();
             e.stopPropagation();
             
-            // Essential for mobile audio unlocking
+            // Critical: Try to unlock Tone here, but the 
+            // "Master Unlock" on the landing page is the real fix!
             await Tone.start();
 
             const statusText = btn.querySelector('.solo-status');
 
             if (currentlyPlayingIndex === i) {
-                // --- ACTION: PAUSE ---
+                // --- THIS PART RUNS IF YOU TAP A PLAYING SAMPLE (PAUSE) ---
                 const elapsed = Tone.now() - startTime;
                 pauseTime += elapsed;
                 player.stop();
                 currentlyPlayingIndex = -1;
-                updateSoloUI(); // Resets UI to show "RESUME"
-            } else {
-                // --- ACTION: PLAY / RESUME ---
+                updateSoloUI();
+            } 
+            else {
+                // --- THIS IS THE "ELSE" BLOCK FOR PLAYING/BUFFERING ---
                 
-                // Stop any other sample currently playing
+                // 1. Stop any other audio
                 player.stop();
 
-                // If switching to a brand new sample, wipe the playhead memory
-                // Note: We check against player.buffer.url if it exists
-                if (currentlyPlayingIndex !== i && currentlyPlayingIndex !== -1) {
+                // 2. Clear old data if it's a new sample
+                if (player.buffer.url !== url) {
                     pauseTime = 0;
                 }
 
-                // Visual Feedback: Show the animated dots while the phone buffers
+                // 3. Update UI to show we are working
                 statusText.innerHTML = `BUFFERING<span class="dot-loader"><span>.</span><span>.</span><span>.</span></span>`;
                 btn.classList.add('loading-pulse');
 
                 try {
-                    // Stream/Load: Fetch only what's needed to start
+                    // 4. The "Stream" load
                     await player.load(url);
                     
-                    // Safety check: ensure offset isn't longer than the file
-                    if (pauseTime >= player.buffer.duration) pauseTime = 0;
-
-                    // Start playback from the stored offset
+                    // 5. Trigger the sound
                     player.start(Tone.now(), pauseTime);
                     
                     startTime = Tone.now();
@@ -138,13 +153,12 @@ function renderSoloButtons(container) {
                     updateSoloUI(currentlyPlayingIndex, pauseTime > 0);
 
                 } catch (err) {
-                    console.error("Playback failed:", err);
-                    statusText.innerText = "RETRY";
+                    console.error("Mobile load error:", err);
+                    statusText.innerText = "TAP TO RETRY";
                     btn.classList.remove('loading-pulse');
-                    currentlyPlayingIndex = -1;
                 }
-            }
-        };
+            } // <--- End of Else
+        }; // <--- End of onclick
 
         // 2. RESET ICON HANDLER
         const resetBtn = btn.querySelector('.reset-icon');
