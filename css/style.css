@@ -224,30 +224,41 @@ body, html {
     100% { box-shadow: 0 0 0px var(--accent); }
 }
 
-/* The track the bar moves along */
-.progress-container {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    height: 6px; /* Give it enough height to be seen */
-    background: rgba(255, 255, 255, 0.15); /* Light grey track */
-    z-index: 5;
-}
-
-/* The actual moving part */
-.progress-bar {
-    width: 0%; /* Starts at zero */
-    height: 100%;
-    background: #00ffcc; /* Or your specific accent color */
-    transition: width 0.2s linear;
-}
-
-/* Ensure the card doesn't hide the bar */
 .solo-item {
-    position: relative; /* Required for absolute positioning of the bar */
-    overflow: hidden;   /* Keeps the bar inside the rounded corners */
-    padding-bottom: 10px; /* Space so text doesn't overlap bar */
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 0 !important; /* Remove padding so zones can fill the space */
+    overflow: hidden;
+}
+
+.solo-click-zone {
+    padding: 20px;
+    flex-grow: 1; /* Fills the card above the progress bar */
+    cursor: pointer;
+}
+
+.progress-container {
+    height: 30px; /* Bigger hit area for easier scrubbing */
+    background: rgba(255, 255, 255, 0.1);
+    position: relative;
+    width: 100%;
+    z-index: 10;
+}
+
+.progress-bar {
+    height: 100%;
+    background: #00ffcc;
+    width: 0%;
+    pointer-events: none;
+}
+
+.reset-icon {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 20;
+    padding: 10px;
 }
 
 /* Subtle feedback while the browser buffers the stream */

@@ -103,100 +103,127 @@ function renderSoloButtons(container) {
     SAMPLES.forEach((url, i) => {
         const btn = document.createElement('div');
         btn.className = 'choice-card solo-item';
+        // Note: No onclick on the 'btn' itself anymore!
         btn.innerHTML = `
-            <div class="solo-label">${NAMES[i]}</div>
-            <div class="solo-status">PLAY</div>
-            <div class="reset-icon" title="Reset to start">↺</div>
+            <div class="solo-click-zone">
+                <div class="solo-label">${NAMES[i]}</div>
+                <div class="solo-status">PLAY</div>
+            </div>
+            <div class="reset-icon">↺</div>
             <div class="progress-container">
                 <div class="progress-bar"></div>
             </div>
         `;
 
-        // 1. Create or retrieve the native audio element
+        const audio = streamCache.get(url) || new Audio(url);
         if (!streamCache.has(url)) {
-            const audio = new Audio(url);
-            audio.preload = "none"; 
+            audio.preload = "metadata";
             audio.crossOrigin = "anonymous";
             streamCache.set(url, audio);
         }
 
-        const audio = streamCache.get(url);
-        const progressBar = btn.querySelector('.progress-bar');
-
-        // 2. The Progress Bar Logic
-        // This updates the bar width as the file streams/plays
-        audio.ontimeupdate = () => {
-            if (audio.duration) {
-                const percentage = (audio.currentTime / audio.duration) * 100;
-                progressBar.style.width = `${percentage}%`;
-            }
+        audio.onwaiting = () => {
+            // Show the user the stream is catching up
+            btn.querySelector('.solo-status').innerText = "STALLING...";
         };
 
-        // 3. The "Natural End" Logic
-        // When the sample finishes, reset the UI so it doesn't look "stuck"
-        audio.onended = () => {
-            progressBar.style.width = '0%';
-            currentlyPlayingIndex = -1;
-            updateSoloUI(); 
+        audio.oncanplay = () => {
+            // Resume showing the correct status
+            updateSoloUI();
         };
 
-        btn.onclick = async (e) => {
+        const bar = btn.querySelector('.progress-bar');
+        const pContainer = btn.querySelector('.progress-container');
+        const reset = btn.querySelector('.reset-icon');
+        const clickZone = btn.querySelector('.solo-click-zone');
+
+        // --- SCRUBBING (Isolated) ---
+        let scrubTimeout;
+
+        const handleScrub = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            await Tone.start(); // Always first!
+            
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const rect = pContainer.getBoundingClientRect();
+            const perc = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
+            
+            // Update the visual bar immediately so it feels snappy
+            bar.style.width = (perc * 100) + "%";
 
-            const audio = streamCache.get(url);
-            const statusText = btn.querySelector('.solo-status');
-
-            if (currentlyPlayingIndex === i) {
-                // --- PAUSE ---
-                audio.pause();
-                currentlyPlayingIndex = -1;
-                updateSoloUI();
-            } else {
-                // --- PLAY ---
-                // Stop any other audio elements currently playing
-                streamCache.forEach(a => a.pause());
-
-                // Important: Update UI to show it's starting
-                statusText.innerHTML = `STREAMING...`;
-
-                // Connect to Tone.js ONLY if you need effects. 
-                // For simple playback, native audio.play() is safest on mobile.
-                audio.play().then(() => {
-                    currentlyPlayingIndex = i;
-                    updateSoloUI(i, audio.currentTime > 0);
-                }).catch(err => {
-                    console.error("Stream blocked:", err);
-                    statusText.innerText = "TAP TO PLAY";
-                });
-            }
+            // Debounce the actual audio seek so we don't spam the server
+            clearTimeout(scrubTimeout);
+            scrubTimeout = setTimeout(() => {
+                if (audio.duration) {
+                    audio.currentTime = perc * audio.duration;
+                }
+            }, 150); // 150ms delay
         };
 
-        // 2. RESET ICON
-        btn.querySelector('.reset-icon').onclick = (e) => {
+        pContainer.addEventListener('mousedown', handleScrub);
+        pContainer.addEventListener('touchstart', handleScrub, {passive: false});
+        pContainer.addEventListener('touchmove', handleScrub, {passive: false});
+
+        // --- RESET (Isolated) ---
+        reset.onclick = (e) => {
             e.stopPropagation();
-            const audio = streamCache.get(url);
             audio.pause();
             audio.currentTime = 0;
-            currentlyPlayingIndex = -1;
+            if (currentlyPlayingIndex === i) currentlyPlayingIndex = -1;
             updateSoloUI();
+        };
+
+        // --- PLAY/PAUSE (Now only on the specific click-zone) ---
+        clickZone.onclick = async (e) => {
+            e.stopPropagation();
+            await Tone.start();
+
+            if (currentlyPlayingIndex === i) {
+                audio.pause();
+                currentlyPlayingIndex = -1;
+            } else {
+                // Pause others
+                streamCache.forEach(a => a.pause());
+                audio.play();
+                currentlyPlayingIndex = i;
+            }
+            updateSoloUI();
+        };
+
+        audio.ontimeupdate = () => {
+            if (audio.duration) {
+                const p = (audio.currentTime / audio.duration) * 100;
+                bar.style.width = p + "%";
+            }
         };
 
         container.appendChild(btn);
     });
 }
 
-function updateSoloUI(activeIndex = -1, isPaused = false) {
-    document.querySelectorAll('.solo-item').forEach((btn, index) => {
-        const status = btn.querySelector('.solo-status');
-        if (index === activeIndex) {
-            status.innerText = "PAUSE";
-            btn.style.borderColor = "var(--accent)";
+function updateSoloUI() {
+    const items = document.querySelectorAll('.solo-item');
+    
+    items.forEach((btn, index) => {
+        const statusText = btn.querySelector('.solo-status');
+        const url = SAMPLES[index];
+        const audio = streamCache.get(url);
+
+        // Reset classes
+        btn.classList.remove('active', 'paused');
+
+        if (index === currentlyPlayingIndex) {
+            // THIS SAMPLE IS CURRENTLY PLAYING
+            statusText.innerText = "PAUSE";
+            btn.classList.add('active');
         } else {
-            btn.style.borderColor = "#333";
-            // Show RESUME if this specific button has a stored pause time
-            status.innerText = (index === currentlyPlayingIndex && isPaused) ? "RESUME" : "PLAY";
+            // THIS SAMPLE IS NOT PLAYING
+            if (audio && audio.currentTime > 0 && !audio.ended) {
+                statusText.innerText = "RESUME";
+                btn.classList.add('paused'); // Optional: style for partially played items
+            } else {
+                statusText.innerText = "PLAY";
+            }
         }
     });
 }
