@@ -112,12 +112,35 @@ body, html {
 }
 
 /* Make the solo page scrollable if there are many samples */
+
+
 #solo-page {
     overflow-y: auto;
     padding: 20px 0;
     display: none; /* Controlled by JS */
     flex-direction: column;
     align-items: center;
+}
+
+#solo-page {
+    display: none; /* Controlled by JS */
+    flex-direction: column;
+    height: 100vh;
+    width: 100%;
+    position: fixed; /* Keeps the whole view locked to the screen */
+    top: 0;
+    left: 0;
+    overflow-y: auto; /* Allows scrolling within the view */
+    /* background: #000; */
+}
+
+/* 1. Fix the Header Spacing */
+#solo-page h2 {
+    margin-top: 150px; /* Space for the BACK button and phone notch */
+    text-align: center;
+    padding: 0 20px;
+    font-size: 1.2rem;
+    letter-spacing: 2px;
 }
 
 .solo-label {
@@ -260,6 +283,7 @@ body, html {
     z-index: 20;
     padding: 10px;
 }
+
 
 /* Subtle feedback while the browser buffers the stream */
 .solo-item:active {
