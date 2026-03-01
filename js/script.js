@@ -6,7 +6,7 @@ const SAMPLES = [
     "./assets/radical-interaction-sarah.mp3",
     "./assets/radical-interaction-JPM.mp3",
     "./assets/radical-interaction-kathy.mp3",
-    "./assets/ri_atau.mp3",
+    "./assets/radical-interaction-atau.mp3",
     "./assets/ri_epilog.mp3"
 ];
 
