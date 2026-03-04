@@ -1,6 +1,6 @@
 // CONFIGURATION
 const SAMPLES = [
-    "./assets/ri_intro.mp3",
+    "./assets/radical-interaction-prologue-edit.mp3",
     "./assets/radical-interaction-rodrigo.mp3",
     "./assets/radical-interaction-courtney.mp3",
     "./assets/radical-interaction-sarah.mp3",
