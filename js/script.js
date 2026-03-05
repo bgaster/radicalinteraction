@@ -7,18 +7,18 @@ const SAMPLES = [
     "./assets/radical-interaction-JPM.mp3",
     "./assets/radical-interaction-kathy.mp3",
     "./assets/radical-interaction-atau.mp3",
-    "./assets/ri_epilog.mp3"
+    "./assets/radical-interaction-epilogue.mp3"
 ];
 
 const NAMES = [
-    "prolog",
+    "prologue",
     "rodrigo",
     "courtney",
     "sarah",
     "jas, maisie, partrica",
     "kathy",
     "atau",
-    "epilog"
+    "epilogue"
 ];
 
 // STATE
